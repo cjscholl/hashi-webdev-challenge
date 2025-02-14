@@ -10,7 +10,7 @@
 import Database from 'better-sqlite3'
 import { executeQuery } from '@datocms/cda-client'
 import 'dotenv/config'
-import { DepartmentRecord, PersonRecord } from 'types'
+import { DepartmentRecord, PersonGQL } from 'types'
 
 const query = `query {
 	allDepartments(first: 100) {
@@ -45,7 +45,7 @@ async function main() {
 	//Docs here: https://github.com/datocms/cda-client
 	const results: {
 		allDepartments: DepartmentRecord[]
-		allPeople: PersonRecord[]
+		allPeople: PersonGQL[]
 	} = await executeQuery(query, {
 		token: DATO_API_TOKEN,
 	})
@@ -80,7 +80,7 @@ async function main() {
 	const insertPerson = db.prepare(
 		'INSERT INTO personRecord VALUES ($id, $name, $title, $avatarUrl, $avatarAlt, $departmentId)'
 	)
-	const insertManyPerson = db.transaction((data: Array<PersonRecord>) => {
+	const insertManyPerson = db.transaction((data: Array<PersonGQL>) => {
 		for (const obj of data) {
 			const department = results.allDepartments.find(
 				(dept) => dept.name === obj.department?.name

@@ -5,16 +5,19 @@
 
 export interface SearchProps {
 	onInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-	onProfileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+	onProfileChange: (e: React.ChangeEvent<HTMLInputElement>) => void,
+	value: string
 }
 
 export default function Search({
 	onInputChange,
 	onProfileChange,
+	value
 }: SearchProps) {
 	return (
 		<>
 			<input
+				value={value}
 				type="text"
 				placeholder="Search people by name"
 				onChange={onInputChange}
