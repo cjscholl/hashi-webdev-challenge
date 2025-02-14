@@ -21,9 +21,18 @@ export interface PersonRecord {
 	id: string
 	name?: string
 	title?: string
+	avatarUrl?: string;
+	avatarAlt?: string;
+	departmentId?: string;
+}
+
+export interface PersonGQL {
+	id: string
+	name?: string
+	title?: string
 	avatar?: {
-		url: string
+		url?: string,
 		alt?: string
-	}
+	},
 	department?: Department
 }
