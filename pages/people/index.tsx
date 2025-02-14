@@ -3,23 +3,21 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import React, { useState } from 'react'
-import { executeQuery } from '@datocms/cda-client'
+import React, { useState, useEffect } from 'react'
 import { GetStaticPropsResult } from 'next'
-import { PersonRecord, DepartmentNode, DepartmentTree, Department } from 'types'
+import { PersonRecord, DepartmentNode, DepartmentTree, Department, DepartmentRecord } from 'types'
 import BaseLayout from '../../layouts/base'
-
+import { useRouter } from 'next/router'
 import {
 	filterPeople,
 	findDepartments,
 	departmentRecordsToDepartmentTree,
-	findChildrenDepartments,
 } from '../../utilities'
-import query from './query.graphql'
 
 import Profile from 'components/profile'
 import Search from 'components/search'
-import DepartmentFilter from 'components/departmentFilter'
+import DepartmentFilter from 'components/departmentFilter';
+import s from './style.module.css'
 
 interface Props {
 	allPeople: PersonRecord[]
@@ -27,53 +25,80 @@ interface Props {
 }
 
 export async function getStaticProps(): Promise<GetStaticPropsResult<Props>> {
-	// Sr. candidate TODO: Load data from DB
-
-	const result = await executeQuery<{
-		allPeople: PersonRecord[]
-		allDepartments: DepartmentNode[]
-	}>(query, {
-		token: `${process.env.DATO_API_TOKEN}`,
-	})
-
-	const data = {
-		allPeople: result.allPeople,
-		allDepartments: result.allDepartments,
-	}
+	const fetchResponse = await fetch('http://localhost:3000/api/hashicorp');
+	const results: {allPeople: PersonRecord[], allDepartments: DepartmentRecord[], filteredDepartments: DepartmentRecord[]} = await fetchResponse.json();
 
 	return {
 		props: {
-			allPeople: data.allPeople,
-			departmentTree: departmentRecordsToDepartmentTree(data.allDepartments),
+			allPeople: results.allPeople,
+			departmentTree: departmentRecordsToDepartmentTree(results.allDepartments),
 		},
 	}
 }
 
 export default function PeoplePage({
-	allPeople,
-	departmentTree,
+	allPeople = [],
+	departmentTree = [],
 }: Props): React.ReactElement {
-	const [searchingName, setSearchingName] = useState('')
+	const router = useRouter();
+	const [searchingName, setSearchingName] = useState<string>('')
 	const [hideNoPicture, setHideNoPicture] = useState(false)
-	const [filteredDepartments, setFilteredDepartments] = useState([])
-
+	const [filteredDepartments, setFilteredDepartments] = useState<Array<Department>>([]);
+	const [people, setPeople] = useState(allPeople);
 	const peopleFiltered = filterPeople(
-		allPeople,
-		searchingName,
+		people,
 		hideNoPicture,
-		findChildrenDepartments(
-			departmentTree,
-			filteredDepartments[filteredDepartments.length - 1]?.id || []
-		)
+		filteredDepartments
 	)
 
 	const filteredDepartmentIds = filteredDepartments.reduce(
-		(acc: string[], department: DepartmentNode) => [...acc, department.id],
+		(acc: string[], department: DepartmentNode) => [...acc, department?.id],
 		[]
 	)
 
-	// Sr. candidate TODO: Update URL based on search and department filters
+	const personDepartment = (personDeptId) => {
+		const depts = findDepartments(departmentTree, personDeptId)
+		return depts[depts.length-1]?.name
+	} 
+	useEffect(() => {
+		if (router.query.name || router.query.department) {
+			setSearchingName(router.query.name as string)
+			if (Array.isArray(router.query.department)){
+				let depts = []
+				for (let id of router.query.department) {
+					depts.push(...findDepartments(departmentTree, id))
+				}
+				setFilteredDepartments(depts)
+			}	
+			else if (router.query.department) {
+				const dept = findDepartments(departmentTree, router.query.department)
+				setFilteredDepartments(dept)
+			} else {
+				setFilteredDepartments([])
+			}
 
+			const apiFetch = async () => {
+				const params = new URLSearchParams();
+				if (Array.isArray(router.query.department)) {
+					router.query.department.forEach(item => {
+						params.append('department', item);
+					});
+				}
+				else {
+					if (router.query.department) {
+						params.append('department', router.query.department);
+					}
+				}
+				if (router.query.name) {
+					params.append('name', router.query.name as string);
+				}
+				const result = await fetch(`/api/hashicorp${params && '?' + params.toString()}`);
+				const filteredPeople = await result.json()
+				setPeople(filteredPeople.allPeople);
+			}
+			apiFetch()
+		}
+	}, [router.query.name, router.query.department])
 	return (
 		<main className="g-grid-container">
 			<div>
@@ -82,25 +107,36 @@ export default function PeoplePage({
 					<span>Find a HashiCorp human</span>
 				</div>
 				<Search
-					onInputChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+					value={searchingName}
+					onInputChange={async (e: React.ChangeEvent<HTMLInputElement>) => {
 						setSearchingName(e.target.value)
-						/**
-						 * Sr. candidate TODO: Hit the API to search for people
-						 * You can use the following URL to hit the API
-						 * /api/hashicorp?search=...
-						 */
+					
+						router.push({
+							pathname: '/people', 
+							query: {
+							  name: e.target.value || undefined,
+							  department: filteredDepartmentIds
+							},
+						});
+						
 					}}
 					onProfileChange={(e: React.ChangeEvent<HTMLInputElement>) =>
 						setHideNoPicture(e.target.checked)
 					}
 				/>
 			</div>
-			<div>
+			<div className={s.flex}>
 				<aside>
 					<DepartmentFilter
 						filteredDepartmentIds={filteredDepartmentIds}
 						clearFiltersHandler={() => {
 							setFilteredDepartments([])
+							router.push({
+								pathname: '/people', 
+								query: {
+								  name: searchingName,
+								  department: []
+							}})
 						}}
 						selectFilterHandler={(departmentFilter: Department) => {
 							const totalDepartmentFilter = findDepartments(
@@ -108,11 +144,18 @@ export default function PeoplePage({
 								departmentFilter.id
 							)
 							setFilteredDepartments(totalDepartmentFilter)
+							const deptIds = totalDepartmentFilter.map(dept => dept.id)
+							router.push({
+								pathname: '/people', 
+								query: {
+								  name: searchingName,
+								  department: deptIds
+							}})
 						}}
 						departmentTree={departmentTree}
 					/>
 				</aside>
-				<ul>
+				<div className={s.people}>
 					{peopleFiltered.length === 0 && (
 						<div>
 							<span>No results found.</span>
@@ -120,17 +163,16 @@ export default function PeoplePage({
 					)}
 					{peopleFiltered.map((person: PersonRecord) => {
 						return (
-							<li key={person.id}>
+							
 								<Profile
-									imgUrl={person.avatar?.url}
+									imgUrl={person?.avatarUrl}
 									name={person.name}
 									title={person.title}
-									department={person.department.name}
+									department={personDepartment(person.departmentId)}
 								/>
-							</li>
 						)
 					})}
-				</ul>
+				</div>
 			</div>
 		</main>
 	)

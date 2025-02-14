@@ -2,13 +2,13 @@
  * Copyright (c) HashiCorp, Inc.
  * SPDX-License-Identifier: MPL-2.0
  */
- 
+
 import { useState } from 'react'
 import s from './style.module.css'
 import Image from 'next/image'
 
 import xIcon from './img/xIcon.svg'
-import caratIcon from './img/carat.svg'
+import caratIcon from './img/Carat.svg'
 import { Department, DepartmentRecord, DepartmentTree } from 'types'
 
 export interface DepartmentFilterProps {

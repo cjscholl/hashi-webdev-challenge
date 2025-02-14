@@ -32,12 +32,13 @@ export const departmentRecordsToDepartmentTree = (
 	return departments.reduce(
 		(nestedList: DepartmentRecord[], item: DepartmentRecord) => {
 			const currentItemWithChildren = listWithChildren[item.id]
-			const currentItemParentId = item.parent?.id
-
+			const currentItemParentId = (item as any).parentId
 			if (currentItemParentId) {
 				listWithChildren[currentItemParentId].children.push(
 					currentItemWithChildren
 				)
+			} else {
+				nestedList.push(currentItemWithChildren)
 			}
 
 			return nestedList
@@ -48,30 +49,35 @@ export const departmentRecordsToDepartmentTree = (
 
 export const filterPeople = (
 	allPeople: PersonRecord[],
-	filteredName: string,
 	filterByPicture: boolean,
-	filteredDepartments: Department[]
+	filteredDepartments: Department[] = []
 ) => {
 	return allPeople.filter((person: PersonRecord) => {
-		if (filterByPicture && person.avatar?.url == null) {
-			return false
-		} else if (
-			filteredName !== '' &&
-			!person.name.toLowerCase().includes(filteredName.toLowerCase())
-		) {
-			return false
+		if (filterByPicture && person.avatarUrl == null) {
+			return false 
 		} else if (
 			filteredDepartments.length !== 0 &&
 			!filteredDepartments
 				.reduce(
-					(acc: string[], department: DepartmentNode) => [
+					(acc: string[], department: DepartmentNode) => {
+						return [
 						...acc,
-						department.name,
-					],
+						department.id,
+					]},
 					[]
 				)
-				.includes(person.department.name)
+				.includes(person.departmentId)
 		) {
+			!filteredDepartments
+				.reduce(
+					(acc: string[], department: DepartmentNode) => {
+						return [
+						...acc,
+						department.id,
+					]},
+					[]
+				)
+				.includes(person.departmentId)
 			return false
 		}
 
